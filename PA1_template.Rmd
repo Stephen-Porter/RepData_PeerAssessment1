@@ -5,29 +5,105 @@ output:
     keep_md: true
 ---
 
+### Stephen Porter
+### October 18, 2015
 
 ## Loading and preprocessing the data
-```{r}
+```{r preprocessing, message=FALSE}
 library(dplyr)
-unzip("activity.zip", files = NULL, list = FALSE, overwrite = TRUE,
-      junkpaths = FALSE, exdir = ".", unzip = "internal",
-      setTimes = FALSE)
-unlink("activity.zip")
+library(lubridate)
+library(ggplot2)
 
-activity <- read.csv("activity.csv")
+## Download the data file from the internet and unzip it
+zipfile <- tempfile()
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(url,zipfile)
+unzip(zipfile)
+unlink(zipfile)
 
-head(activity)
+## Read in Csv file
+act <- read.csv("activity.csv")
+
+## Examine the contents to the file with head
+head(act)
+## Convert data frame to dplyr format
+act <- tbl_df(act)
+## Convert the date column to an actual date
+act <- mutate(act, date = ymd(date))
 ```
+
+
 ## What is mean total number of steps taken per day?
+```{r daily_steps}
+daily_steps <- act %>% 
+                    filter(!is.na(steps)) %>%           # Filter out NA's
+                    group_by(date) %>%                  # Group by each day    
+                    summarise(totalsteps= sum(steps))   # Calculate steps per day
 
+hist(daily_steps$totalsteps, 
+     xlab = "Total Steps per Day", main="Steps per Day")
 
+# The mean of total steps per day is:
+mean(daily_steps$totalsteps)
+
+# The median of total steps per day is:
+median(daily_steps$totalsteps)
+
+```
 
 ## What is the average daily activity pattern?
+```{r avg_act_pattern}
 
+day_act_pat <- act %>% 
+    group_by(interval) %>%                  # Group by each interval    
+    summarise(int_avg = mean(steps, na.rm=TRUE))   # Average steps per interval
 
+plot(day_act_pat$interval, day_act_pat$int_avg, 
+     type="l", xlab = "5 Minute Intervals", ylab = "Average Steps",
+     main = "Average Daily Activity Pattern")
 
+```
+
+Which 5-minute interval, on average across all the days in the dataset, 
+contains the maximum number of steps?
+
+```{r max_avg_act_pattern}
+
+day_act_pat[which.max(day_act_pat$int_avg),]    
+    
+```
 ## Imputing missing values
+Calculate and report the total number of missing values in the dataset 
+(i.e. the total number of rows with NAs)
+```{r NAS}
+sum(is.na(act$steps))  # Count the NA's in the data set
 
+# Replace NA's with average for the interval
 
+act2 <- act
+for (i in 1:17568) 
+{
+    if(is.na(act2$steps[i])) 
+    { 
+        pointer <- act2$interval[i]
+        for (j in 1:288) 
+        {
+            if (day_act_pat$interval[j] == pointer) 
+                act2$steps[i] <- day_act_pat$int_avg[j]     
+        }
+    }
+}
+
+```
+
+```{r imputed_hist}
+imputed_steps <- act2 %>% 
+                    group_by(date) %>%                  # Group by each day    
+                    summarise(totalsteps= sum(steps))
+
+hist(imputed_steps$totalsteps, 
+     xlab = "Total Steps per Day", main="Steps per Day (Imputed)")
+
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
